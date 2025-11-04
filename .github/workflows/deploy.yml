@@ -1,0 +1,97 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+            set -e
+            cd ${DEPLOY_PATH}
+
+            echo "Pulling latest changes..."
+            git pull origin main
+
+            echo "Copying production environment..."
+            cp .env.production backend/.env.production
+
+            echo "Building and restarting services..."
+            docker-compose -f docker-compose.prod.yml build backend
+            docker-compose -f docker-compose.prod.yml up -d
+
+            echo "Running database migrations..."
+            docker-compose -f docker-compose.prod.yml exec -T backend npm run migrate
+
+            echo "Checking service health..."
+            sleep 10
+            docker-compose -f docker-compose.prod.yml ps
+
+            echo "Deployment completed successfully!"
+          EOF
+
+      - name: Health Check
+        run: |
+          sleep 15
+          curl -f https://api.civicvoice.org/api/health || exit 1
+
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment to production: ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    environment: production
+
+    steps:
+      - name: Rollback deployment
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Execute rollback
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+            cd ${DEPLOY_PATH}
+            git reset --hard HEAD~1
+            docker-compose -f docker-compose.prod.yml up -d
+          EOF

@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.production.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+backend/logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Uploads and generated files
+uploads/
+backend/uploads/
+*.pdf
+
+# SSL certificates
+certbot/conf/live/
+certbot/conf/archive/
+certbot/conf/renewal/
+*.pem
+*.key
+*.crt
+
+# Backups
+backups/
+*.sql
+*.sql.gz
+
+# Docker
+.dockerignore
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Monitoring data
+infrastructure/monitoring/grafana_data/
+infrastructure/monitoring/prometheus_data/
+infrastructure/monitoring/alertmanager_data/
